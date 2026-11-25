@@ -1,0 +1,12 @@
+// 一个阅读记录页：书名、作者、阅读时间，能按月统计
+model ReadingNote {
+    id          Int      @id @default(autoincrement())
+    name        String   @db.VarChar(20)   // 书名
+    author      String // 作者
+    progress    Int // 阅读进度
+    readDate    DateTime // 阅读时间
+    durationMin Int // 阅读时长（分钟）
+    createdAt   DateTime @default(now()) // 创建时间
+    updatedAt   DateTime @updatedAt // 更新时间
+    userId      Int
+}

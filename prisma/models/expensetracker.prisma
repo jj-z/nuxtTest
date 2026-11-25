@@ -1,0 +1,14 @@
+// 一个记账页：收入、支出、时间，能按月统计
+model Expense {
+    id        Int       @id @default(autoincrement())
+    amount    Float //金额
+    type      String // "income" 或 "expense"
+    category  String // 类别
+    date      DateTime // 时间
+    createdAt DateTime  @default(now()) // 创建时间
+    updatedAt DateTime  @updatedAt // 更新时间
+    deletedAt DateTime?
+    month     String //自定义统计月份
+    year      String
+    userId    Int
+}

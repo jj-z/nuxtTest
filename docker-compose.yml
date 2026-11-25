@@ -1,0 +1,143 @@
+# ============================================================
+#  docker-compose.yml —— 一键启动「应用 + 数据库」两个容器
+#
+#  本项目和已有的 chishafan 项目共用同一台服务器，所以端口必须错开：
+#    chishafan-app → 宿主机 3000 端口
+#    chishafan-db  → 宿主机 5434 端口
+#    nuxt-test-app → 宿主机 3001 端口（本项目）
+#    nuxt-test-db  → 宿主机 5435 端口（本项目）
+#
+#  注意：你的服务器还没备案，国内云服务器的 80/443 端口不能直接对外提供 HTTP 服务，
+#        所以本项目用 3001 端口对外提供访问（http://服务器IP:3001）。
+# ============================================================
+
+# compose 文件格式版本（不需要手动改，Docker 会自动识别）
+# version 字段在新版 docker compose 里已废弃，这里留作注释说明
+# version: "3.8"
+
+
+# ====================== 服务定义 ======================
+services:
+
+  # ---------- 数据库服务（PostgreSQL + pgvector 扩展） ----------
+  # 项目用了 pgvector 做笔记向量检索（见 prisma/models/notes.prisma 的 embedding 字段），
+  # 所以必须用 pgvector 官方镜像，不能用普通 postgres 镜像。
+  db:
+    # 镜像：PostgreSQL 16 + pgvector 扩展
+    # 和 chishafan 用的是同一个镜像，方便服务器缓存复用
+    image: pgvector/pgvector:pg16
+
+    # 容器名称（方便用 docker ps / docker logs 查找）
+    container_name: nuxt-test-db
+
+    # 容器异常退出时自动重启
+    restart: unless-stopped
+
+    # 环境变量：初始化数据库时使用
+    environment:
+      # 超级用户名
+      POSTGRES_USER: nuxtuser
+      # 超级用户密码（不写明文，改为在项目根目录的 .env 中设置 DB_PASSWORD）
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?请在项目根目录 .env 中设置 DB_PASSWORD}
+      # 自动创建的数据库名
+      POSTGRES_DB: nuxt_test
+
+    # 端口映射：宿主机端口:容器端口
+    # 容器内部 PostgreSQL 固定监听 5432
+    # 宿主机用 5435，避免和 chishafan 的 5434 冲突
+    ports:
+      - "5435:5432"
+
+    # 数据卷：把数据库数据持久化到宿主机
+    # 容器删除后，数据还在 nuxt-test-db-data 这个 volume 里
+    volumes:
+      - nuxt-test-db-data:/var/lib/postgresql/data
+
+    # 健康检查：Docker 定期检测数据库是否正常
+    healthcheck:
+      # pg_isready 是 PostgreSQL 自带的检测命令
+      test: ["CMD-SHELL", "pg_isready -U nuxtuser -d nuxt_test"]
+      interval: 5s        # 每 5 秒检查一次
+      timeout: 5s         # 单次检测超时 5 秒
+      retries: 10         # 连续失败 10 次才判定不健康
+      start_period: 10s   # 启动后 10 秒内不检测（给数据库初始化时间）
+
+
+  # ---------- 应用服务（Nuxt 4） ----------
+  app:
+    # 从当前目录的 Dockerfile 构建镜像
+    build:
+      context: .          # 构建上下文 = 当前目录
+      dockerfile: Dockerfile  # Dockerfile 文件名
+
+    # 镜像名称（构建后会打这个标签）
+    image: nuxt-test-app
+
+    # 容器名称
+    container_name: nuxt-test-app
+
+    # 容器异常退出时自动重启
+    restart: unless-stopped
+
+    # 端口映射：宿主机端口:容器端口
+    # 容器内部 Nuxt 监听 3000（Dockerfile 里设置的 PORT=3000）
+    # 宿主机用 3001，避免和 chishafan 的 3000 冲突
+    ports:
+      - "3001:3000"
+
+    # 环境变量：注入到应用运行时
+    # 应用通过 process.env.xxx 读取这些值
+    environment:
+      # 数据库连接字符串
+      # 格式: postgresql://用户名:密码@主机:端口/数据库名?schema=public
+      # 注意：这里的主机是 db（上面定义的数据库服务名），
+      #       Docker 内部网络会自动把 db 解析到数据库容器的 IP。
+      #       端口用容器内部的 5432，不是宿主机的 5435！
+      #       密码取自项目根目录 .env 中的 DB_PASSWORD
+      DATABASE_URL: "postgresql://nuxtuser:${DB_PASSWORD}@db:5432/nuxt_test?schema=public"
+
+      # Nuxt 会话加密密钥（用于签名用户登录的 cookie）
+      # 至少 32 字符的随机字符串，生产环境务必改成你自己的！
+      NUXT_SESSION_PASSWORD: "请替换成至少32位的随机字符串比如aB3xK9mN2pQ7rT5vW8yZ1cD4fG6hJ0kL"
+
+      # GLM 大模型 API 密钥（智谱 AI）
+      # 不填的话 AI 问答功能用不了，其他功能正常
+      NUXT_GLM_API_KEY: "你的GLM_API密钥"
+
+      # 文件上传目录
+      # 这里指向容器内的 /app/uploads，下面会挂载到宿主机
+      UPLOAD_DIR: "/app/uploads"
+
+      # Node.js 生产模式
+      NODE_ENV: production
+
+    # 数据卷：把上传的文件持久化到宿主机
+    # 否则容器重启后用户上传的图片/文件会丢失
+    volumes:
+      - nuxt-test-uploads:/app/uploads
+
+    # 依赖关系：先启动数据库，再启动应用
+    # 但 depends_on 只保证启动顺序，不保证数据库「就绪」
+    # 真正等待数据库就绪的逻辑在 docker-entrypoint.sh 里
+    depends_on:
+      db:
+        condition: service_healthy  # 等数据库健康检查通过才启动应用
+
+    # 健康检查：检测应用是否正常响应
+    healthcheck:
+      # 请求应用首页，返回 200 就算健康
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s  # 启动后 30 秒内不检测（给应用启动时间）
+
+
+# ====================== 数据卷定义 ======================
+# Docker 管理的命名卷，数据存在宿主机的 Docker 目录下
+# 用 docker volume ls 可以查看，docker volume inspect 可以看具体路径
+volumes:
+  # 数据库数据卷
+  nuxt-test-db-data:
+  # 用户上传文件卷
+  nuxt-test-uploads:

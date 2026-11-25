@@ -1,0 +1,62 @@
+model Order {
+    id            Int            @id @default(autoincrement())
+    userId        Int
+    user          Customer       @relation(fields: [userId], references: [id])
+    totalAmount   Decimal        @db.Decimal(10, 2)
+    status        String         @default("pending")
+    createdAt     DateTime       @default(now())
+    orderProducts OrderProduct[]
+}
+
+model Product {
+    id             Int             @id @default(autoincrement())
+    name           String
+    price          Decimal         @db.Decimal(10, 2)
+    orderProducts  OrderProduct[]
+    productDetails ProductDetail[]
+}
+
+model OrderProduct {
+    orderId   Int
+    productId Int
+    order     Order   @relation(fields: [orderId], references: [id])
+    product   Product @relation(fields: [productId], references: [id])
+    quantity  Int     @default(0)
+    unitPrice Decimal @default(0) @db.Decimal(10, 2)
+
+    @@id([orderId, productId])
+}
+
+// 供销商
+model Supplier {
+    id                  Int                  @id @default(autoincrement())
+    name                String
+    groupPurchasePoints GroupPurchasePoint[]
+}
+
+// 团购点
+model GroupPurchasePoint {
+    id             Int             @id @default(autoincrement())
+    name           String
+    productDetails ProductDetail[]
+    supplierId     Int
+    supplier       Supplier        @relation(fields: [supplierId], references: [id])
+}
+
+// 客户
+model Customer {
+    id     Int     @id @default(autoincrement())
+    name   String
+    orders Order[]
+}
+
+// 团购点商品明细
+model ProductDetail {
+    groupPurchasePointId Int
+    productId            Int
+    groupPurchasePoint   GroupPurchasePoint @relation(fields: [groupPurchasePointId], references: [id])
+    product              Product            @relation(fields: [productId], references: [id])
+    inventory            Int
+
+    @@id([groupPurchasePointId, productId])
+}

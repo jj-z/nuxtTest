@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Enrollment" ALTER COLUMN "grade" SET DATA TYPE DOUBLE PRECISION;

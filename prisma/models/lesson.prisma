@@ -1,0 +1,37 @@
+model Department {
+  id       Int       @id @default(autoincrement())
+  @@index([id])
+  name     String    @unique
+  head     String
+  students Student[]
+  courses  Course[]
+}
+
+model Student {
+  id            Int          @id @default(autoincrement())
+  name          String
+  studentNumber String       @unique@default("0000000000")
+  age           Int          @default(18)
+  department    Department   @relation(fields: [departmentId], references: [id])
+  departmentId  Int
+  enrollments   Enrollment[]
+}
+
+model Course {
+  id           Int          @id @default(autoincrement())
+  name         String
+  credit       Int
+  department   Department   @relation(fields: [departmentId], references: [id])
+  departmentId Int
+  enrollments  Enrollment[]
+}
+
+model Enrollment {
+  student   Student @relation(fields: [studentId], references: [id])
+  studentId Int
+  course    Course  @relation(fields: [courseId], references: [id])
+  courseId  Int
+  grade     Float?
+
+  @@id([studentId, courseId])
+}

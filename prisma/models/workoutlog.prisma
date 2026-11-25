@@ -1,0 +1,11 @@
+// 一个健身记录页：动作、组数、次数，能看趋势
+model WorkoutLog {
+    id         Int      @id @default(autoincrement())
+    action     String // 动作
+    sets       Int // 做多少组
+    reps       Int // 每组多少次
+    workoutMin DateTime // 训练时间
+    createdAt  DateTime @default(now()) // 创建时间
+    updatedAt  DateTime @updatedAt // 更新时间
+    userId     Int
+}

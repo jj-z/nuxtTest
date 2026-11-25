@@ -1,0 +1,38 @@
+model User {
+  id                  Int       @id @default(autoincrement())
+  name                String
+  email               String    @unique
+  phone               String    @default("00000000000")
+  createdAt           DateTime  @default(now())
+  sex                 String    @default("male")
+  age                 Int       @default(18)
+  passwordHash        String
+  deletedAt           DateTime? 
+  updatedAt           DateTime? 
+  lastLoginAt         DateTime? 
+  lockedUntil         DateTime? 
+  failedLoginAttempts Int       @default(0)
+  role                String    @default("user")
+  tokenLimit          Int       @default(1000)
+  tokenUsed          Int       @default(0)
+}
+
+model ChatSession {
+  id        String    @id @default(cuid())
+  title     String    @default("新对话") // 可以根据第一句话自动生成
+  userId    String    // 关联你的用户系统
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages Message[]
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  role      String      // 记录是谁说的：'user' 还是 'assistant'
+  content   String      // 聊天内容文本
+  sessionId String
+  createdAt DateTime    @default(now())
+
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+}
